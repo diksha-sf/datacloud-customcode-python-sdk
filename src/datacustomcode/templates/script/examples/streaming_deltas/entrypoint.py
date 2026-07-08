@@ -1,10 +1,11 @@
 """Streaming BYOC transform: read a DLO change feed and write the deltas back.
 
 This example is the streaming counterpart to a normal batch entrypoint. Instead
-of ``read_dlo`` / ``write_to_dlo`` (which read and write a bounded snapshot), it
-uses the streaming delta methods:
+of a batch ``Client`` with ``read_dlo`` / ``write_to_dlo`` (which read and write
+a bounded snapshot), it uses a :class:`StreamingClient` and its streaming delta
+methods:
 
-* ``client.read_dlo_deltas(name)`` returns a *streaming* DataFrame over the
+* ``client.read_dlo_deltas()`` returns a *streaming* DataFrame over the
   Change Data Feed of the source DLO. Each row carries the source columns plus
   change-feed metadata columns (``_record_type``, ``_commit_*``).
 * ``client.write_dlo_deltas(name, df)`` starts a streaming query that writes
@@ -23,14 +24,14 @@ runtime; the local ``datacustomcode run`` readers/writers raise
 
 from pyspark.sql.functions import col, upper
 
-from datacustomcode.client import Client
+from datacustomcode.client import StreamingClient
 
 
 def main():
-    client = Client()
+    client = StreamingClient()
 
     # Streaming DataFrame over the source DLO's change feed.
-    deltas = client.read_dlo_deltas("Account_std__dll")
+    deltas = client.read_dlo_deltas()
 
     # Ordinary PySpark transform.
     transformed = deltas.withColumn("description__c", upper(col("description__c")))
