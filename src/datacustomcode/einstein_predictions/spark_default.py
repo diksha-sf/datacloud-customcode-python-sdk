@@ -108,7 +108,7 @@ class DefaultSparkEinsteinPredictions(SparkEinsteinPredictions):
         def _predict(values_row: Any) -> Dict[str, Optional[str]]:
             if values_row is None:
                 # An entirely null features struct is not the normal per-feature null
-                # case; surface it directly rather than masking it (local debuggability).
+                # case; surface it directly rather than masking it (debuggability).
                 return {
                     "status": _STATUS_ERROR,
                     "response": None,
@@ -227,19 +227,17 @@ def _invoke_predictions(
     except EinsteinPredictionsCallError:
         raise
     except Exception as exc:
-        # Transport/build failures: surface the real error (no masking) so local runs stay
-        # debuggable. error_code stays None since there is no HTTP status.
+        # Transport/build failures: surface the real error (no masking) so local
+        # runs stay debuggable. error_code stays None since there is no HTTP status.
         raise EinsteinPredictionsCallError(
             f"Einstein Predictions call failed: {exc}",
             status=None,
             error_code=None,
             error_message=str(exc),
-        )
+        ) from exc
 
     if response.status_code != _HTTP_OK:
-        error_message = (
-            json.dumps(response.data) if response.data is not None else None
-        )
+        error_message = json.dumps(response.data) if response.data is not None else None
         raise EinsteinPredictionsCallError(
             f"Einstein Predictions call failed: "
             f"status_code={response.status_code}, message={error_message!r}",
@@ -267,8 +265,8 @@ def _invoke_predictions_as_struct(
             "error_message": _null_feature_message(null_feature),
         }
 
-    # (b) Transport/build failures — surface the real error (no masking) so local runs stay
-    # debuggable. error_code stays None since there is no HTTP status.
+    # (b) Transport/build failures — surface the real error (no masking) so local
+    # runs stay debuggable. error_code stays None since there is no HTTP status.
     try:
         response = _call_predictions(
             predictions, model_api_name, prediction_type, features, settings
