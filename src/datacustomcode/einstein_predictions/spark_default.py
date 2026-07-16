@@ -39,6 +39,9 @@ if TYPE_CHECKING:
 _STATUS_SUCCESS = "SUCCESS"
 _STATUS_ERROR = "ERROR"
 
+# HTTP status considered a successful prediction call.
+_HTTP_OK = 200
+
 
 class DefaultSparkEinsteinPredictions(SparkEinsteinPredictions):
 
@@ -104,6 +107,8 @@ class DefaultSparkEinsteinPredictions(SparkEinsteinPredictions):
 
         def _predict(values_row: Any) -> Dict[str, Optional[str]]:
             if values_row is None:
+                # An entirely null features struct is not the normal per-feature null
+                # case; surface it directly rather than masking it (debuggability).
                 return {
                     "status": _STATUS_ERROR,
                     "response": None,
@@ -181,6 +186,21 @@ def _call_predictions(
     return predictions.predict(request)
 
 
+def _null_feature_name(features: Dict[str, Any]) -> Optional[str]:
+    """Return the name of the first null feature value, or ``None``."""
+    for name, value in features.items():
+        if value is None:
+            return name
+    return None
+
+
+def _null_feature_message(name: str) -> str:
+    return (
+        f"Feature '{name}' has null value. Use coalesce() or when() to handle "
+        f"nulls before calling einstein_predict."
+    )
+
+
 def _invoke_predictions(
     predictions: "EinsteinPredictions",
     model_api_name: str,
@@ -190,18 +210,40 @@ def _invoke_predictions(
 ) -> Dict[str, Any]:
     from datacustomcode.einstein_predictions.errors import EinsteinPredictionsCallError
 
-    response = _call_predictions(
-        predictions, model_api_name, prediction_type, features, settings
-    )
-    if not response.is_success:
-        error_code = _extract_error_code(response)
+    null_feature = _null_feature_name(features)
+    if null_feature is not None:
+        message = _null_feature_message(null_feature)
+        raise EinsteinPredictionsCallError(
+            f"Einstein Predictions call failed: {message}",
+            status=None,
+            error_code=None,
+            error_message=message,
+        )
+
+    try:
+        response = _call_predictions(
+            predictions, model_api_name, prediction_type, features, settings
+        )
+    except EinsteinPredictionsCallError:
+        raise
+    except Exception as exc:
+        # Transport/build failures: surface the real error (no masking) so local
+        # runs stay debuggable. error_code stays None since there is no HTTP status.
+        raise EinsteinPredictionsCallError(
+            f"Einstein Predictions call failed: {exc}",
+            status=None,
+            error_code=None,
+            error_message=str(exc),
+        ) from exc
+
+    if response.status_code != _HTTP_OK:
+        error_message = json.dumps(response.data) if response.data is not None else None
         raise EinsteinPredictionsCallError(
             f"Einstein Predictions call failed: "
-            f"status_code={response.status_code}, "
-            f"error_code={error_code!r}, message={response.data!r}",
+            f"status_code={response.status_code}, message={error_message!r}",
             status=response.status_code,
-            error_code=error_code,
-            error_message=str(response.data) if response.data else None,
+            error_code=str(response.status_code),
+            error_message=error_message,
         )
     return response.data or {}
 
@@ -213,27 +255,46 @@ def _invoke_predictions_as_struct(
     features: Dict[str, Any],
     settings: Optional[Dict[str, Any]],
 ) -> Dict[str, Optional[str]]:
-    response = _call_predictions(
-        predictions, model_api_name, prediction_type, features, settings
-    )
-    if not response.is_success:
+    # (a) Customer-actionable data condition — surface the actionable message directly.
+    null_feature = _null_feature_name(features)
+    if null_feature is not None:
         return {
             "status": _STATUS_ERROR,
             "response": None,
-            "error_code": _extract_error_code(response),
-            "error_message": str(response.data) if response.data else None,
+            "error_code": None,
+            "error_message": _null_feature_message(null_feature),
         }
+
+    # (b) Transport/build failures — surface the real error (no masking) so local
+    # runs stay debuggable. error_code stays None since there is no HTTP status.
+    try:
+        response = _call_predictions(
+            predictions, model_api_name, prediction_type, features, settings
+        )
+    except Exception as exc:
+        return {
+            "status": _STATUS_ERROR,
+            "response": None,
+            "error_code": None,
+            "error_message": str(exc),
+        }
+
+    if response.status_code == _HTTP_OK:
+        return {
+            "status": _STATUS_SUCCESS,
+            "response": (
+                json.dumps(response.data) if response.data is not None else None
+            ),
+            "error_code": None,
+            "error_message": None,
+        }
+
+    # (c) Non-200 SFAP HTTP error: error_code = status code, error_message = data JSON.
     return {
-        "status": _STATUS_SUCCESS,
-        "response": json.dumps(response.data) if response.data is not None else None,
-        "error_code": None,
-        "error_message": None,
+        "status": _STATUS_ERROR,
+        "response": None,
+        "error_code": str(response.status_code),
+        "error_message": (
+            json.dumps(response.data) if response.data is not None else None
+        ),
     }
-
-
-def _extract_error_code(response: "PredictionResponse") -> Optional[str]:
-    if response.data:
-        error_code = response.data.get("errorCode")
-        if error_code is not None:
-            return str(error_code)
-    return None
