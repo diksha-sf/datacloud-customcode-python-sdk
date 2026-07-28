@@ -73,6 +73,11 @@ class TestGetToken:
     def reader(self):
         return _make_reader()
 
+    @pytest.fixture(autouse=True)
+    def mock_sf_which(self):
+        with patch("shutil.which", return_value="sf"):
+            yield
+
     def _run_result(self, stdout: str) -> MagicMock:
         result = MagicMock()
         result.stdout = stdout
@@ -99,7 +104,7 @@ class TestGetToken:
             capture_output=True,
             text=True,
             check=True,
-            timeout=30,
+            timeout=120,
         )
         mock_run.assert_any_call(
             [
@@ -114,11 +119,11 @@ class TestGetToken:
             capture_output=True,
             text=True,
             check=True,
-            timeout=30,
+            timeout=120,
         )
 
     def test_file_not_found_raises_runtime_error(self, reader):
-        with patch("subprocess.run", side_effect=FileNotFoundError):
+        with patch("shutil.which", return_value=None):
             with pytest.raises(RuntimeError, match="'sf' command was not found"):
                 reader._get_token()
 

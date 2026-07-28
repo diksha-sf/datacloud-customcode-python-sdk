@@ -206,6 +206,7 @@ class TestDefaultSparkEinsteinPredictionsPredictCol:
         out = udf_fn(None)
         assert out["status"] == _STATUS_ERROR
         assert out["response"] is None
+        assert out["error_code"] is None
         assert "null" in out["error_message"].lower()
         mock_inner.predict.assert_not_called()
 
@@ -213,7 +214,8 @@ class TestDefaultSparkEinsteinPredictionsPredictCol:
     @patch("pyspark.sql.functions.struct")
     def test_udf_returns_error_struct_on_http_error(self, mock_struct, mock_udf):
         """Per-row errors are returned as ``status="ERROR"`` structs so one bad
-        row does not abort the Spark job."""
+        row does not abort the Spark job. ``error_code`` is the HTTP status code
+        and ``error_message`` is the SFAP body as JSON."""
         mock_struct.return_value = MagicMock()
         mock_udf.return_value = MagicMock()
         mock_inner = MagicMock()
@@ -233,8 +235,99 @@ class TestDefaultSparkEinsteinPredictionsPredictCol:
 
         assert out["status"] == _STATUS_ERROR
         assert out["response"] is None
-        assert out["error_code"] == "UNAVAILABLE"
-        assert out["error_message"] is not None
+        assert out["error_code"] == "503"
+        assert json.loads(out["error_message"]) == {"errorCode": "UNAVAILABLE"}
+
+    @patch("pyspark.sql.functions.udf")
+    @patch("pyspark.sql.functions.struct")
+    def test_udf_returns_specific_error_for_null_feature(self, mock_struct, mock_udf):
+        """A null feature value is a customer-actionable data condition: it is
+        surfaced with error_code None and an actionable message, never coerced
+        to the string "None"."""
+        mock_struct.return_value = MagicMock()
+        mock_udf.return_value = MagicMock()
+        mock_inner = MagicMock()
+        predictions = DefaultSparkEinsteinPredictions(einstein_predictions=mock_inner)
+
+        predictions.einstein_predict_col(
+            "model1", PredictionType.REGRESSION, {"beds": MagicMock()}
+        )
+
+        udf_fn = mock_udf.call_args.args[0]
+        row = MagicMock()
+        row.asDict.return_value = {"beds": None}
+        out = udf_fn(row)
+
+        assert out["status"] == _STATUS_ERROR
+        assert out["response"] is None
+        assert out["error_code"] is None
+        assert "beds" in out["error_message"]
+        assert "coalesce" in out["error_message"]
+        mock_inner.predict.assert_not_called()
+
+    @patch("pyspark.sql.functions.udf")
+    @patch("pyspark.sql.functions.struct")
+    def test_udf_returns_generic_error_on_transport_failure(
+        self, mock_struct, mock_udf
+    ):
+        """Transport/build exceptions are logged and surfaced with error_code None
+        and the exception text as error_message so local runs stay debuggable."""
+        mock_struct.return_value = MagicMock()
+        mock_udf.return_value = MagicMock()
+        mock_inner = MagicMock()
+        mock_inner.predict.side_effect = RuntimeError("connection refused to 10.0.0.1")
+        predictions = DefaultSparkEinsteinPredictions(einstein_predictions=mock_inner)
+
+        predictions.einstein_predict_col(
+            "model1", PredictionType.REGRESSION, {"beds": MagicMock()}
+        )
+
+        udf_fn = mock_udf.call_args.args[0]
+        row = MagicMock()
+        row.asDict.return_value = {"beds": 3.0}
+        out = udf_fn(row)
+
+        assert out["status"] == _STATUS_ERROR
+        assert out["response"] is None
+        assert out["error_code"] is None
+        assert out["error_message"] == "connection refused to 10.0.0.1"
+
+    @patch("pyspark.sql.functions.udf")
+    @patch("pyspark.sql.functions.struct")
+    def test_udf_passes_through_prediction_failure_as_success(
+        self, mock_struct, mock_udf
+    ):
+        """A 200 response carrying a PredictionFailure stays SUCCESS; the failure
+        is passed through in ``response`` for the script to handle."""
+        mock_struct.return_value = MagicMock()
+        mock_udf.return_value = MagicMock()
+        failure_body = {
+            "results": [
+                {
+                    "type": "PredictionFailure",
+                    "error": {
+                        "message": "no match",
+                        "predictionErrorCode": "PREDICTION_ERROR_CODE_NO_MATCH",
+                    },
+                }
+            ]
+        }
+        mock_inner = MagicMock()
+        mock_inner.predict.return_value = _success_response(failure_body)
+        predictions = DefaultSparkEinsteinPredictions(einstein_predictions=mock_inner)
+
+        predictions.einstein_predict_col(
+            "model1", PredictionType.BINARY_CLASSIFICATION, {"beds": MagicMock()}
+        )
+
+        udf_fn = mock_udf.call_args.args[0]
+        row = MagicMock()
+        row.asDict.return_value = {"beds": 3.0}
+        out = udf_fn(row)
+
+        assert out["status"] == _STATUS_SUCCESS
+        assert json.loads(out["response"]) == failure_body
+        assert out["error_code"] is None
 
 
 class TestInvokePredictions:
@@ -260,9 +353,37 @@ class TestInvokePredictions:
             )
 
         assert excinfo.value.status == 503
-        assert excinfo.value.error_code == "UNAVAILABLE"
+        assert excinfo.value.error_code == "503"
+        assert excinfo.value.error_message == json.dumps({"errorCode": "UNAVAILABLE"})
         assert "503" in str(excinfo.value)
-        assert "UNAVAILABLE" in str(excinfo.value)
+
+    def test_raises_specific_error_on_null_feature(self):
+        mock_inner = MagicMock()
+
+        with pytest.raises(EinsteinPredictionsCallError) as excinfo:
+            _invoke_predictions(
+                mock_inner, "model", PredictionType.REGRESSION, {"x": None}, None
+            )
+
+        assert excinfo.value.status is None
+        assert excinfo.value.error_code is None
+        assert "x" in str(excinfo.value.error_message)
+        assert "coalesce" in str(excinfo.value.error_message)
+        mock_inner.predict.assert_not_called()
+
+    def test_raises_generic_error_on_transport_failure(self):
+        mock_inner = MagicMock()
+        mock_inner.predict.side_effect = RuntimeError("connection refused to 10.0.0.1")
+
+        with pytest.raises(EinsteinPredictionsCallError) as excinfo:
+            _invoke_predictions(
+                mock_inner, "model", PredictionType.REGRESSION, {"x": 1.0}, None
+            )
+
+        assert excinfo.value.status is None
+        assert excinfo.value.error_code is None
+        assert excinfo.value.error_message == "connection refused to 10.0.0.1"
+        assert "connection refused" in str(excinfo.value)
 
 
 class TestInvokePredictionsAsStruct:
@@ -295,8 +416,35 @@ class TestInvokePredictionsAsStruct:
 
         assert out["status"] == _STATUS_ERROR
         assert out["response"] is None
-        assert out["error_code"] == "UNAVAILABLE"
-        assert out["error_message"] is not None
+        assert out["error_code"] == "503"
+        assert json.loads(out["error_message"]) == {"errorCode": "UNAVAILABLE"}
+
+    def test_null_feature_returns_specific_error_struct(self):
+        mock_inner = MagicMock()
+
+        out = _invoke_predictions_as_struct(
+            mock_inner, "model", PredictionType.REGRESSION, {"x": None}, None
+        )
+
+        assert out["status"] == _STATUS_ERROR
+        assert out["response"] is None
+        assert out["error_code"] is None
+        assert "x" in out["error_message"]
+        assert "None" != out["error_message"]
+        mock_inner.predict.assert_not_called()
+
+    def test_transport_failure_returns_generic_error_struct(self):
+        mock_inner = MagicMock()
+        mock_inner.predict.side_effect = RuntimeError("connection refused to 10.0.0.1")
+
+        out = _invoke_predictions_as_struct(
+            mock_inner, "model", PredictionType.REGRESSION, {"x": 1.0}, None
+        )
+
+        assert out["status"] == _STATUS_ERROR
+        assert out["response"] is None
+        assert out["error_code"] is None
+        assert out["error_message"] == "connection refused to 10.0.0.1"
 
 
 class TestDefaultSparkEinsteinPredictionsErrorHandling:
@@ -316,4 +464,4 @@ class TestDefaultSparkEinsteinPredictionsErrorHandling:
             )
 
         assert excinfo.value.status == 429
-        assert excinfo.value.error_code == "RATE_LIMITED"
+        assert excinfo.value.error_code == "429"
