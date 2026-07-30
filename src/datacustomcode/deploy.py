@@ -598,9 +598,9 @@ def zip(
 
     with zipfile.ZipFile(ZIP_FILE_NAME, "w", zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(directory):
-            # Skip .DS_Store files when adding to zip
+            # Skip .DS_Store and local credentials.
             for file in files:
-                if file != ".DS_Store":
+                if file not in (".DS_Store", "credential.json"):
                     abs_path = os.path.join(root, file)
                     arcname = os.path.relpath(abs_path, directory)
                     zipf.write(abs_path, arcname)
