@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import ClassVar
 
 import pytest
 from requests.models import PreparedRequest
@@ -282,12 +283,10 @@ class TestDirectCalloutTransport:
 
         class _Resp:
             status_code = 200
-            headers: dict = {}
+            headers: ClassVar[dict] = {}
             text = ""
 
-        monkeypatch.setattr(
-            transport_mod.requests, "request", lambda **kwargs: _Resp()
-        )
+        monkeypatch.setattr(transport_mod.requests, "request", lambda **kwargs: _Resp())
 
         # Many per-row callouts, same callout key: base URL is resolved just once.
         for _ in range(5):

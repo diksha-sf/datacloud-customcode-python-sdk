@@ -55,7 +55,7 @@ class DirectCalloutTransport:
             credentials_profile, sf_cli_org
         )
         # Resolved base URL per callout key. Stable for the transport's life, so
-        # cache it to avoid a token fetch + Connect API call on every row 
+        # cache it to avoid a token fetch + Connect API call on every row
         self._base_url_cache: Dict[str, str] = {}
 
     @staticmethod
@@ -73,7 +73,7 @@ class DirectCalloutTransport:
                 f"Callout URL must start with 'callout:', got '{raw_url}'."
             )
 
-        # Split the named credential reference at the first '/' or '?'; the remainder 
+        # Split the named credential reference at the first '/' or '?'; the remainder
         # path or query string is appended to the resolved base URL verbatim.
         sep_idx = min(
             (i for i in (raw_url.find("/"), raw_url.find("?")) if i != -1),
@@ -83,9 +83,7 @@ class DirectCalloutTransport:
         path_suffix = raw_url[sep_idx:]
 
         if callout_key == "callout:":
-            raise CredentialError(
-                f"Named Credential name is empty in URL '{raw_url}'."
-            )
+            raise CredentialError(f"Named Credential name is empty in URL '{raw_url}'.")
 
         cred_config = self._store.get(callout_key)
         base_url = self._base_url_cache.get(callout_key)

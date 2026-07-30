@@ -63,7 +63,7 @@ class NamedCredential(ABC, UserExtendableNamedConfigMixin):
     ) -> Dict[str, Any]:
         """Low-level string-in/string-out callout returning the raw response.
 
-        It is required only by the per-row Spark path which forwards the 
+        It is required only by the per-row Spark path which forwards the
         raw body per row; the default signals it as unsupported.
         """
         raise NotImplementedError(

@@ -19,7 +19,11 @@ Inject external credential auth into an outgoing request.
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING, Any, Dict
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+)
 
 from requests.auth import AuthBase
 

@@ -53,7 +53,7 @@ class SparkNamedCredential(ABC, UserExtendableNamedConfigMixin):
         """Make an external callout through a Named Credential.
 
         Args:
-            request: The callout request 
+            request: The callout request
             body: Optional JSON-serializable request body.
 
         Returns:
@@ -75,7 +75,7 @@ class SparkNamedCredential(ABC, UserExtendableNamedConfigMixin):
         dispatched independently rather than one-shot on the driver.
 
         Args:
-            request: The callout template 
+            request: The callout template
             body: Optional per-row ``Column`` holding the JSON request body as a
                 string (or null for no body).
 

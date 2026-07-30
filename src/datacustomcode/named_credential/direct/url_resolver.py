@@ -38,7 +38,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-NAMED_CREDENTIAL_PATH = "services/data/v63.0/named-credentials/named-credential-setup/{name}"
+NAMED_CREDENTIAL_PATH = (
+    "services/data/v63.0/named-credentials/named-credential-setup/{name}"
+)
 
 
 def _callout_url_from_connect_api(
@@ -65,8 +67,8 @@ def _callout_url_from_connect_api(
         return callout_url or None
     except Exception as exc:
         # A token was obtained but the Connect API call failed — likely a
-        # misconfiguration (named credential not onboarded, missing permission, wrong org).
-        # Surface it before silently falling back to target_url.
+        # misconfiguration (named credential not onboarded, missing
+        # permission, wrong org). Surface it before falling back to target_url.
         logger.warning(
             "Connect API URL resolution failed for %s: %s. "
             "Falling back to 'target_url' from credential.json if set.",

@@ -32,7 +32,7 @@ class DefaultNamedCredential(NamedCredential):
     """
     Executes the callout directly via :class:`DirectCalloutTransport`, resolving
     the URL from the Named Credential Connect API (falling back to
-    ``credential.json``) and injecting auth from ``credential.json``. 
+    ``credential.json``) and injecting auth from ``credential.json``.
     """
 
     CONFIG_NAME = "DefaultNamedCredential"

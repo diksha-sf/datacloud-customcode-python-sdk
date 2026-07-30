@@ -127,9 +127,7 @@ class DefaultSparkNamedCredential(SparkNamedCredential):
             )
 
         def _callout(body_str: Optional[str]) -> Dict[str, Any]:
-            return _invoke_callout_as_struct(
-                self._named_credential, request, body_str
-            )
+            return _invoke_callout_as_struct(self._named_credential, request, body_str)
 
         body_col = body if body is not None else lit(None).cast(StringType())
         return udf(_callout, result_schema)(body_col)
