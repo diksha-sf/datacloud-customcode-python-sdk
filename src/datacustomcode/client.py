@@ -201,14 +201,15 @@ def named_credential_request_col(
     The returned Column yields a struct ``{status, response, error_code,
     error_message}`` for each row. ``response`` is itself a struct
     ``{status_code, body, headers}``. Use ``[...]`` to pick a field, e.g.
-    ``named_credential_request_col(...)["response"]["status_code"]``. Per-row
-    failures populate ``status`` / ``error_code`` / ``error_message`` so a
-    single bad row does not abort the whole Spark job.
+    ``named_credential_request_col(...)["response"]["status_code"]``. A transport
+    failure sets ``status`` to ``ERROR`` and populates ``error_message`` (a non-2xx
+    HTTP response is still ``SUCCESS`` with its code in ``response.status_code``),
+    so a single bad row does not abort the whole Spark job.
 
     Args:
         request: The callout template — its symbolic reference, method, and
             headers are applied to every row.
-        body: Optional per-row ``Column`` holding the JSON request body as a
+        body: Optional per-row ``Column`` holding the request body as a
             string (or null for no body).
 
     Returns:
@@ -533,7 +534,7 @@ class Client:
     def named_credential_request(
         self,
         request: "HTTPRequest",
-        body: Optional[Dict[str, Any]] = None,
+        body: Optional[str] = None,
     ) -> "HTTPResponse":
         """Issue a one-shot Named Credential external callout. This is the
         scalar counterpart to :func:`named_credential_request_col`: it runs
@@ -552,7 +553,8 @@ class Client:
 
         Args:
             request: The callout request
-            body: Optional JSON-serializable request body.
+            body: Optional request body. Set the ``Content-Type`` header to
+                match the format; the SDK does not assume or inject one.
 
         Returns:
             The external service's response.

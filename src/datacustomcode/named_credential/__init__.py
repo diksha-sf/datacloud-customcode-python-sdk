@@ -15,7 +15,6 @@
 
 from datacustomcode.named_credential.base import NamedCredential
 from datacustomcode.named_credential.default import DefaultNamedCredential
-from datacustomcode.named_credential.errors import NamedCredentialCallError
 from datacustomcode.named_credential.spark_base import SparkNamedCredential
 from datacustomcode.named_credential.spark_default import DefaultSparkNamedCredential
 
@@ -23,6 +22,5 @@ __all__ = [
     "DefaultNamedCredential",
     "DefaultSparkNamedCredential",
     "NamedCredential",
-    "NamedCredentialCallError",
     "SparkNamedCredential",
 ]

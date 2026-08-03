@@ -51,8 +51,11 @@ class DynamicAuthHandler(AuthBase):
 
         elif self.auth_type in (AuthType.OAUTH.value, AuthType.JWT.value):
             bearer = self.config.get("access_token") or self.config.get("token")
-            if bearer:
-                request.headers["Authorization"] = f"Bearer {bearer}"
+            if not bearer:
+                raise ValueError(
+                    f"'{self.auth_type}' auth requires an 'access_token' or 'token'."
+                )
+            request.headers["Authorization"] = f"Bearer {bearer}"
 
         else:
             raise ValueError(f"Unsupported auth_type '{self.auth_type}'.")

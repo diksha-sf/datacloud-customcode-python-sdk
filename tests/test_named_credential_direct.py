@@ -70,6 +70,16 @@ class TestDynamicAuthHandler:
         request = handler(_prepared_request())
         assert request.headers["Authorization"] == "Bearer jwt-tok"
 
+    def test_oauth_missing_token_raises(self):
+        handler = DynamicAuthHandler({"auth_type": AuthType.OAUTH.value})
+        with pytest.raises(ValueError):
+            handler(_prepared_request())
+
+    def test_jwt_missing_token_raises(self):
+        handler = DynamicAuthHandler({"auth_type": AuthType.JWT.value})
+        with pytest.raises(ValueError):
+            handler(_prepared_request())
+
     def test_unsupported_auth_type_raises_value_error(self):
         handler = DynamicAuthHandler({"auth_type": "Nonsense"})
         with pytest.raises(ValueError):
@@ -275,6 +285,12 @@ class TestDirectCalloutTransport:
         transport = self._make_transport(tmp_path, monkeypatch, {"auth_type": "Custom"})
         with pytest.raises(CredentialError):
             transport.callout({"path": "https://example.com/x", "method": "GET"})
+
+    @pytest.mark.parametrize("path", ["callout:", "callout:/path"])
+    def test_callout_rejects_empty_named_credential(self, tmp_path, monkeypatch, path):
+        transport = self._make_transport(tmp_path, monkeypatch, {"auth_type": "Custom"})
+        with pytest.raises(CredentialError):
+            transport.callout({"path": path, "method": "GET", "headers": {}})
 
     def test_base_url_resolved_once_per_callout_key(self, tmp_path, monkeypatch):
         from datacustomcode.named_credential.direct import transport as transport_mod

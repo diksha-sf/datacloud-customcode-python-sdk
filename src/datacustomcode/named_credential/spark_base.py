@@ -85,7 +85,9 @@ class SparkNamedCredential(ABC, UserExtendableNamedConfigMixin):
             itself a struct ``{status_code, body, headers}`` carrying the callout
             response. Select a field with ``[...]``, e.g.
             ``request_col(...)["response"]["status_code"]``. Returning a struct
-            means a single failing row does not abort the Spark job — callers can
-            inspect ``status`` / ``error_code`` per row instead.
+            means a single failing row does not abort the Spark job — a transport
+            failure sets ``status`` to ``ERROR`` with ``error_message``, while a
+            non-2xx HTTP response stays ``SUCCESS`` with its code in
+            ``response.status_code``.
         """
         ...
