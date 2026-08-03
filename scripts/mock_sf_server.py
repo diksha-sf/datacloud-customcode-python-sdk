@@ -18,11 +18,11 @@ POST /services/data/v66.0/ssot/query-sql
     Returns fake rows with the columns expected by the default script template
     (Account_std__dll: description__c, sfdcorganizationid__c, kq_id__c).
 
-POST /services/data/v67.0/ssot/data-custom-code
+POST /services/data/v63.0/ssot/data-custom-code
     Called by deploy_full() → create_deployment().
     Returns a fake fileUploadUrl pointing back at this server.
 
-GET  /services/data/v67.0/ssot/data-custom-code/*
+GET  /services/data/v63.0/ssot/data-custom-code/*
     Called by deploy_full() → wait_for_deployment() → get_deployments().
     Returns deploymentStatus=Deployed immediately so the poll loop exits.
 
@@ -87,7 +87,7 @@ _QUERY_RESPONSE = {
     ],
 }
 
-_DATA_CUSTOM_CODE_PATH = "/services/data/v67.0/ssot/data-custom-code"
+_DATA_CUSTOM_CODE_PATH = "/services/data/v63.0/ssot/data-custom-code"
 _DATA_TRANSFORMS_PATH = "/services/data/v63.0/ssot/data-transforms"
 
 
