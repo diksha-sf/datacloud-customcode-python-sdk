@@ -29,6 +29,7 @@ from datacustomcode.named_credential.direct.credentials import (
     CredentialStore,
 )
 from datacustomcode.named_credential.direct.url_resolver import resolve_base_url
+from datacustomcode.named_credential.errors import NamedCredentialCallError
 
 
 def _prepared_request() -> PreparedRequest:
@@ -283,13 +284,13 @@ class TestDirectCalloutTransport:
 
     def test_callout_rejects_non_callout_url(self, tmp_path, monkeypatch):
         transport = self._make_transport(tmp_path, monkeypatch, {"auth_type": "Custom"})
-        with pytest.raises(CredentialError):
+        with pytest.raises(NamedCredentialCallError):
             transport.callout({"path": "https://example.com/x", "method": "GET"})
 
     @pytest.mark.parametrize("path", ["callout:", "callout:/path"])
     def test_callout_rejects_empty_named_credential(self, tmp_path, monkeypatch, path):
         transport = self._make_transport(tmp_path, monkeypatch, {"auth_type": "Custom"})
-        with pytest.raises(CredentialError):
+        with pytest.raises(NamedCredentialCallError):
             transport.callout({"path": path, "method": "GET", "headers": {}})
 
     def test_base_url_resolved_once_per_callout_key(self, tmp_path, monkeypatch):

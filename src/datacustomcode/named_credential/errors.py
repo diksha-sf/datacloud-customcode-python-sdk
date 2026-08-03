@@ -12,17 +12,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Exceptions raised by Named Credential implementations."""
 
-from datacustomcode.named_credential.base import NamedCredential
-from datacustomcode.named_credential.default import DefaultNamedCredential
-from datacustomcode.named_credential.errors import NamedCredentialCallError
-from datacustomcode.named_credential.spark_base import SparkNamedCredential
-from datacustomcode.named_credential.spark_default import DefaultSparkNamedCredential
+from __future__ import annotations
 
-__all__ = [
-    "DefaultNamedCredential",
-    "DefaultSparkNamedCredential",
-    "NamedCredential",
-    "NamedCredentialCallError",
-    "SparkNamedCredential",
-]
+from typing import Optional
+
+
+class NamedCredentialCallError(RuntimeError):
+    """Raised when a Named Credential external callout fails."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: Optional[object] = None,
+        error_code: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        super().__init__(message)
+        self.status = status
+        self.error_code = error_code
+        self.error_message = error_message

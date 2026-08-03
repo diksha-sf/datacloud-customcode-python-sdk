@@ -35,7 +35,7 @@ FEATURE_TEMPLATE_MAPPING = {
 
 # Feature name to Connect API name mapping
 USE_IN_FEATURE_MAPPING_FOR_CONNECT_API = {
-    "SearchIndexChunking": "UnstructuredChunking",
+    "SearchIndexChunking": "SearchIndexChunking",
 }
 
 # Pydantic request/response type names to feature names

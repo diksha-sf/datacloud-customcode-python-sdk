@@ -262,7 +262,7 @@ def deploy(
         mapped_feature = USE_IN_FEATURE_MAPPING_FOR_CONNECT_API.get(
             use_in_feature, use_in_feature
         )
-        metadata.functionInvokeOptions = [mapped_feature]
+        metadata.invokeOptions = [mapped_feature]
 
     try:
         if sf_cli_org:

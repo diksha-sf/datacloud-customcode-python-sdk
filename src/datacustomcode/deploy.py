@@ -42,7 +42,7 @@ from datacustomcode.named_credential.direct.credentials import (
 )
 from datacustomcode.scan import find_base_directory, get_package_type
 
-DATA_CUSTOM_CODE_PATH = "services/data/v63.0/ssot/data-custom-code"
+DATA_CUSTOM_CODE_PATH = "services/data/v67.0/ssot/data-custom-code"
 DATA_TRANSFORMS_PATH = "services/data/v63.0/ssot/data-transforms"
 WAIT_FOR_DEPLOYMENT_TIMEOUT = 3000
 
@@ -110,7 +110,7 @@ class CodeExtensionMetadata(BaseModel):
     description: str
     computeType: str
     codeType: str
-    functionInvokeOptions: Union[list[str], None] = None
+    invokeOptions: Union[list[str], None] = None
 
     def __init__(self, **data):
         name = data.get("name", "")
@@ -214,8 +214,8 @@ def create_deployment(
             "codeType": metadata.codeType,
         }
     )
-    if metadata.functionInvokeOptions:
-        body["functionInvokeOptions"] = metadata.functionInvokeOptions
+    if metadata.invokeOptions:
+        body["invokeOptions"] = metadata.invokeOptions
     logger.debug(f"Creating deployment {metadata.name}...")
     try:
         response = _make_api_call(

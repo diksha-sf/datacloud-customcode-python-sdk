@@ -31,11 +31,9 @@ from typing import (
 import requests
 
 from datacustomcode.named_credential.direct.auth import DynamicAuthHandler
-from datacustomcode.named_credential.direct.credentials import (
-    CredentialError,
-    CredentialStore,
-)
+from datacustomcode.named_credential.direct.credentials import CredentialStore
 from datacustomcode.named_credential.direct.url_resolver import resolve_base_url
+from datacustomcode.named_credential.errors import NamedCredentialCallError
 from datacustomcode.token_provider import (
     CredentialsTokenProvider,
     SFCLITokenProvider,
@@ -69,7 +67,7 @@ class DirectCalloutTransport:
     def callout(self, callout_request: Dict[str, Any]) -> Dict[str, Any]:
         raw_url = callout_request["path"]
         if not raw_url.startswith("callout:"):
-            raise CredentialError(
+            raise NamedCredentialCallError(
                 f"Callout URL must start with 'callout:', got '{raw_url}'."
             )
 
@@ -83,7 +81,9 @@ class DirectCalloutTransport:
         path_suffix = raw_url[sep_idx:]
 
         if callout_key == "callout:":
-            raise CredentialError(f"Named Credential name is empty in URL '{raw_url}'.")
+            raise NamedCredentialCallError(
+                f"Named Credential name is empty in URL '{raw_url}'."
+            )
 
         cred_config = self._store.get(callout_key)
         base_url = self._base_url_cache.get(callout_key)

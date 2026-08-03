@@ -657,7 +657,7 @@ class TestCreateDeployment:
             version="1.0.0",
             description="Test job",
             computeType="CPU_M",
-            functionInvokeOptions=["option1", "option2"],
+            invokeOptions=["option1", "option2"],
             codeType="function",
         )
 
