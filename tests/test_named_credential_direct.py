@@ -78,9 +78,11 @@ class TestDynamicAuthHandler:
 
 class TestCredentialStore:
     def test_get_returns_config(self, tmp_path, monkeypatch):
-        cred_file = tmp_path / "credential.json"
+        cred_file = tmp_path / "external_callout_config.json"
         cred_file.write_text(
-            json.dumps({"callout:NC": {"auth_type": "Basic", "username": "u"}})
+            json.dumps(
+                {"credentials": {"callout:NC": {"auth_type": "Basic", "username": "u"}}}
+            )
         )
         monkeypatch.setenv(CREDENTIAL_FILE_ENV_VAR, str(cred_file))
         store = CredentialStore()
@@ -89,8 +91,10 @@ class TestCredentialStore:
         assert config["username"] == "u"
 
     def test_explicit_path_takes_precedence(self, tmp_path):
-        cred_file = tmp_path / "credential.json"
-        cred_file.write_text(json.dumps({"callout:NC": {"auth_type": "OAuth"}}))
+        cred_file = tmp_path / "external_callout_config.json"
+        cred_file.write_text(
+            json.dumps({"credentials": {"callout:NC": {"auth_type": "OAuth"}}})
+        )
         store = CredentialStore(str(cred_file))
         assert store.get("callout:NC")["auth_type"] == "OAuth"
 
@@ -100,21 +104,25 @@ class TestCredentialStore:
             store.get("callout:NC")
 
     def test_missing_key_raises(self, tmp_path):
-        cred_file = tmp_path / "credential.json"
-        cred_file.write_text(json.dumps({"callout:Other": {"auth_type": "Basic"}}))
+        cred_file = tmp_path / "external_callout_config.json"
+        cred_file.write_text(
+            json.dumps({"credentials": {"callout:Other": {"auth_type": "Basic"}}})
+        )
         store = CredentialStore(str(cred_file))
         with pytest.raises(CredentialError):
             store.get("callout:NC")
 
     def test_missing_auth_type_raises(self, tmp_path):
-        cred_file = tmp_path / "credential.json"
-        cred_file.write_text(json.dumps({"callout:NC": {"username": "u"}}))
+        cred_file = tmp_path / "external_callout_config.json"
+        cred_file.write_text(
+            json.dumps({"credentials": {"callout:NC": {"username": "u"}}})
+        )
         store = CredentialStore(str(cred_file))
         with pytest.raises(CredentialError):
             store.get("callout:NC")
 
     def test_non_object_json_raises(self, tmp_path):
-        cred_file = tmp_path / "credential.json"
+        cred_file = tmp_path / "external_callout_config.json"
         cred_file.write_text(json.dumps(["not", "an", "object"]))
         store = CredentialStore(str(cred_file))
         with pytest.raises(CredentialError):
@@ -182,8 +190,8 @@ class TestDirectCalloutTransport:
     def _make_transport(self, tmp_path, monkeypatch, cred_entry):
         from datacustomcode.named_credential.direct import transport as transport_mod
 
-        cred_file = tmp_path / "credential.json"
-        cred_file.write_text(json.dumps({"callout:NC": cred_entry}))
+        cred_file = tmp_path / "external_callout_config.json"
+        cred_file.write_text(json.dumps({"credentials": {"callout:NC": cred_entry}}))
         monkeypatch.setattr(
             transport_mod.DirectCalloutTransport,
             "_build_token_provider",
@@ -233,11 +241,11 @@ class TestDirectCalloutTransport:
         assert captured["method"] == "POST"
         assert "params" not in captured
         assert captured["data"] == '{"a": 1}'
-        # Content-Type auto-added because a body is present.
-        assert captured["headers"]["Content-Type"] == "application/json"
+        # No Content-Type is assumed; headers are passed through verbatim.
+        assert "Content-Type" not in captured["headers"]
         assert isinstance(captured["auth"], DynamicAuthHandler)
 
-        assert result["http_status_code"] == 200
+        assert result["status_code"] == 200
         assert result["body"] == '{"ok": true}'
 
     @pytest.mark.parametrize("method", ["PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])

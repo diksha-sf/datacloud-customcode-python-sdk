@@ -15,5 +15,5 @@
 """Named Credential callout path.
 
 This resolves the endpoint via the NamedCredential Connect API
-and injects auth from a developer-provided ``credential.json``
+and injects auth from a developer-provided ``external_callout_config.json``
 """

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from typing import (
     Any,
     Dict,
@@ -32,7 +31,7 @@ class DefaultNamedCredential(NamedCredential):
     """
     Executes the callout directly via :class:`DirectCalloutTransport`, resolving
     the URL from the Named Credential Connect API (falling back to
-    ``credential.json``) and injecting auth from ``credential.json``.
+    ``external_callout_config.json``) and injecting auth from the same file.
     """
 
     CONFIG_NAME = "DefaultNamedCredential"
@@ -53,40 +52,10 @@ class DefaultNamedCredential(NamedCredential):
     def request(
         self,
         request: HTTPRequest,
-        body: Optional[Dict[str, Any]] = None,
-    ) -> HTTPResponse:
-        callout_response = self.callout_json(
-            request, json.dumps(body) if body is not None else ""
-        )
-
-        raw_body = callout_response.get("body") or ""
-        data: Optional[Any] = None
-        if raw_body:
-            try:
-                # Preserve any JSON value: object, array, or scalar.
-                data = json.loads(raw_body)
-            except json.JSONDecodeError:
-                data = None
-
-        response_dict = {
-            "status_code": callout_response.get("http_status_code"),
-            "headers": callout_response.get("headers", {}),
-            "data": data,
-        }
-        return HTTPResponseBuilder.build(response_dict)
-
-    def callout_json(
-        self,
-        request: HTTPRequest,
         body: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Raw string-in/string-out callout returning the unparsed response.
-
-        Unlike :meth:`request`, the ``body`` is sent verbatim (never re-parsed)
-        and the response is returned as a raw ``{http_status_code, headers,
-        body}`` dict rather than a parsed :class:`HTTPResponse`.
-        """
-        # Callout request shape sent to the transport.
+    ) -> HTTPResponse:
+        # Body and response are treated as opaque strings; the SDK makes no
+        # assumption about their format (JSON, XML, text, ...).
         callout_request = {
             "path": request.url,
             "method": request.method,
@@ -94,16 +63,18 @@ class DefaultNamedCredential(NamedCredential):
             "body": body if body is not None else "",
         }
         callout_response = self._callout(callout_request)
-        return {
-            "http_status_code": callout_response.get("http_status_code"),
-            "headers": callout_response.get("headers", {}),
-            "body": callout_response.get("body") or "",
-        }
+        return HTTPResponseBuilder.build(
+            {
+                "status_code": callout_response.get("status_code"),
+                "headers": callout_response.get("headers", {}),
+                "body": callout_response.get("body") or "",
+            }
+        )
 
     def _callout(self, callout_request: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the callout via the transport.
 
-        Returns a dict with ``http_status_code``, ``headers``, and ``body``.
+        Returns a dict with ``status_code``, ``headers``, and ``body``.
         """
         result: Dict[str, Any] = self._get_transport().callout(callout_request)
         return result

@@ -71,7 +71,7 @@ def _callout_url_from_connect_api(
         # permission, wrong org). Surface it before falling back to target_url.
         logger.warning(
             "Connect API URL resolution failed for %s: %s. "
-            "Falling back to 'target_url' from credential.json if set.",
+            "Falling back to 'target_url' from external_callout_config.json if set.",
             developer_name,
             exc,
         )
@@ -87,7 +87,7 @@ def resolve_base_url(
 
     Args:
         callout_key: e.g. ``callout:Nominatim_Geocoding``.
-        cred_config: The callout's ``credential.json`` entry.
+        cred_config: The callout's ``external_callout_config.json`` entry.
         token_provider: Provides a token/instance URL for the Connect API; when
             None, only ``target_url`` is used.
 
@@ -106,6 +106,7 @@ def resolve_base_url(
     if not base_url:
         raise CredentialError(
             f"Could not resolve a URL for '{callout_key}'. Ensure the Named "
-            f"Credential exists (sf login) or set 'target_url' in credential.json."
+            f"Credential exists (sf login) or set 'target_url' in "
+            f"external_callout_config.json."
         )
     return base_url.rstrip("/")

@@ -42,7 +42,7 @@ class TestNamedCredentialConfig:
                 self.custom_param = custom_param
 
             def request(self, request, body=None):
-                return HTTPResponse(status_code=200, data={"echo": self.custom_param})
+                return HTTPResponse(status_code=200, body=self.custom_param)
 
         assert "CustomNamedCredential" in NamedCredential.available_config_names()
         cls = NamedCredential.subclass_from_config_name("CustomNamedCredential")
@@ -56,7 +56,7 @@ class TestNamedCredentialConfig:
         assert isinstance(instance, CustomNamedCredential)
 
         response = instance.request(HTTPRequest(url="callout:NC/path"))
-        assert response.data == {"echo": "my_value"}
+        assert response.body == "my_value"
 
 
 class TestRuntimeNamedCredential:

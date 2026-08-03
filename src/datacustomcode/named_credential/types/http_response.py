@@ -13,11 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import (
-    Any,
-    Dict,
-    Optional,
-)
+from typing import Dict
 
 from pydantic import BaseModel, Field
 
@@ -29,10 +25,11 @@ class HTTPResponse(BaseModel):
     headers: Dict[str, str] = Field(
         default_factory=dict, description="Response headers"
     )
-    data: Optional[Any] = Field(
-        default=None,
-        description="Parsed JSON response body (object, array, or scalar), "
-        "or None if the body was empty or not JSON",
+    body: str = Field(
+        default="",
+        description="Raw response body, verbatim (any format). The SDK does not "
+        "parse it; the caller decodes as needed (e.g. json.loads). Empty string "
+        "if the response had no body.",
     )
 
     @property

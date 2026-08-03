@@ -16,8 +16,8 @@
 
 Resolves the ``callout:<NamedCredential>/<path>`` reference to a real endpoint
 (via the Named Credential Connect API, falling back to ``target_url`` in
-``credential.json``), attaches the credential's auth, and returns the raw
-``{http_status_code, headers, body}`` response.
+``external_callout_config.json``), attaches the credential's auth, and returns the raw
+``{status_code, headers, body}`` response.
 """
 
 from __future__ import annotations
@@ -92,9 +92,8 @@ class DirectCalloutTransport:
             self._base_url_cache[callout_key] = base_url
 
         body = callout_request.get("body") or None
+        # Headers are passed; the SDK assumes no Content-Type.
         headers = dict(callout_request.get("headers", {}))
-        if body and "Content-Type" not in headers:
-            headers["Content-Type"] = "application/json"
 
         response = requests.request(
             method=callout_request["method"],
@@ -105,7 +104,7 @@ class DirectCalloutTransport:
             timeout=30,
         )
         return {
-            "http_status_code": response.status_code,
+            "status_code": response.status_code,
             "headers": dict(response.headers),
             "body": response.text,
         }

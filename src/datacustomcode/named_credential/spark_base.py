@@ -18,7 +18,6 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     Optional,
 )
 
@@ -48,13 +47,14 @@ class SparkNamedCredential(ABC, UserExtendableNamedConfigMixin):
     def request(
         self,
         request: HTTPRequest,
-        body: Optional[Dict[str, Any]] = None,
+        body: Optional[str] = None,
     ) -> HTTPResponse:
         """Make an external callout through a Named Credential.
 
         Args:
             request: The callout request
-            body: Optional JSON-serializable request body.
+            body: Optional request body. Set the
+                ``Content-Type`` header yourself; the SDK does not assume one.
 
         Returns:
             The external service's response.
@@ -76,8 +76,8 @@ class SparkNamedCredential(ABC, UserExtendableNamedConfigMixin):
 
         Args:
             request: The callout template
-            body: Optional per-row ``Column`` holding the JSON request body as a
-                string (or null for no body).
+            body: Optional per-row ``Column`` holding the request body as a
+                string, sent verbatim (or null for no body).
 
         Returns:
             A ``Column`` yielding a struct

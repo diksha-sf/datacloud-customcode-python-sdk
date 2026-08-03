@@ -116,7 +116,7 @@ class TestHTTPResponse:
     def test_response_defaults(self):
         response = HTTPResponse(status_code=200)
         assert response.headers == {}
-        assert response.data is None
+        assert response.body == ""
 
     def test_is_success_for_2xx(self):
         assert HTTPResponse(status_code=200).is_success is True
@@ -136,12 +136,12 @@ class TestHTTPResponse:
 class TestHTTPResponseBuilder:
     def test_build_from_dict(self):
         response = HTTPResponseBuilder.build(
-            {"status_code": 200, "headers": {"X": "y"}, "data": {"ok": True}}
+            {"status_code": 200, "headers": {"X": "y"}, "body": '{"ok": true}'}
         )
         assert isinstance(response, HTTPResponse)
         assert response.status_code == 200
         assert response.headers == {"X": "y"}
-        assert response.data == {"ok": True}
+        assert response.body == '{"ok": true}'
 
     def test_build_requires_status_code(self):
         with pytest.raises(ValidationError):
@@ -154,20 +154,20 @@ class TestDefaultNamedCredential:
 
         class _FakeTransport:
             def callout(self, callout_request):
-                return {"http_status_code": 200, "headers": {}, "body": "{}"}
+                return {"status_code": 200, "headers": {}, "body": "{}"}
 
         monkeypatch.setattr(nc, "_get_transport", lambda: _FakeTransport())
         result = nc._callout({"path": "callout:NC/x", "method": "GET"})
-        assert result["http_status_code"] == 200
+        assert result["status_code"] == 200
 
-    def test_request_translates_json_response(self, monkeypatch):
+    def test_request_forwards_raw_body_and_response(self, monkeypatch):
         nc = DefaultNamedCredential()
         captured = {}
 
         def fake_callout(callout_request):
             captured.update(callout_request)
             return {
-                "http_status_code": 200,
+                "status_code": 200,
                 "headers": {"Content-Type": "application/json"},
                 "body": '{"result": "ok"}',
             }
@@ -180,7 +180,7 @@ class TestDefaultNamedCredential:
             .set_headers({"Accept": "application/json"})
             .build()
         )
-        response = nc.request(request, {"key": "value"})
+        response = nc.request(request, '{"key": "value"}')
 
         # The query string travels inside the path verbatim.
         assert captured["path"] == "callout:NC/search?q=sf"
@@ -191,7 +191,7 @@ class TestDefaultNamedCredential:
 
         assert response.status_code == 200
         assert response.headers == {"Content-Type": "application/json"}
-        assert response.data == {"result": "ok"}
+        assert response.body == '{"result": "ok"}'
         assert response.is_success is True
 
     def test_request_without_body_sends_empty_string(self, monkeypatch):
@@ -200,7 +200,7 @@ class TestDefaultNamedCredential:
 
         def fake_callout(callout_request):
             captured.update(callout_request)
-            return {"http_status_code": 204, "headers": {}, "body": ""}
+            return {"status_code": 204, "headers": {}, "body": ""}
 
         monkeypatch.setattr(nc, "_callout", fake_callout)
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
@@ -208,102 +208,43 @@ class TestDefaultNamedCredential:
 
         assert captured["body"] == ""
         assert response.status_code == 204
-        assert response.data is None
+        assert response.body == ""
 
-    def test_request_non_json_body_yields_none_data(self, monkeypatch):
+    def test_request_non_json_body_returned_verbatim(self, monkeypatch):
         nc = DefaultNamedCredential()
 
         def fake_callout(callout_request):
-            return {"http_status_code": 200, "headers": {}, "body": "plain text"}
+            return {"status_code": 200, "headers": {}, "body": "plain text"}
 
         monkeypatch.setattr(nc, "_callout", fake_callout)
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
         response = nc.request(request)
-        assert response.data is None
+        assert response.body == "plain text"
 
-    def test_request_json_array_body_preserved(self, monkeypatch):
+    def test_request_json_array_body_returned_verbatim(self, monkeypatch):
         nc = DefaultNamedCredential()
 
         def fake_callout(callout_request):
-            return {"http_status_code": 200, "headers": {}, "body": "[1, 2, 3]"}
+            return {"status_code": 200, "headers": {}, "body": "[1, 2, 3]"}
 
         monkeypatch.setattr(nc, "_callout", fake_callout)
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
         response = nc.request(request)
-        assert response.data == [1, 2, 3]
+        assert response.body == "[1, 2, 3]"
 
-    def test_request_json_scalar_body_preserved(self, monkeypatch):
-        nc = DefaultNamedCredential()
-
-        def fake_callout(callout_request):
-            return {"http_status_code": 200, "headers": {}, "body": "42"}
-
-        monkeypatch.setattr(nc, "_callout", fake_callout)
-        request = HTTPRequestBuilder().set_url("callout:NC/path").build()
-        response = nc.request(request)
-        assert response.data == 42
-
-    def test_request_empty_dict_body_sends_object(self, monkeypatch):
+    def test_request_opaque_string_body_sent_verbatim(self, monkeypatch):
         nc = DefaultNamedCredential()
         captured = {}
 
         def fake_callout(callout_request):
             captured.update(callout_request)
-            return {"http_status_code": 200, "headers": {}, "body": ""}
+            return {"status_code": 200, "headers": {}, "body": ""}
 
         monkeypatch.setattr(nc, "_callout", fake_callout)
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
-        nc.request(request, {})
+        nc.request(request, "a=1&b=2")
 
-        # An explicit empty dict is a body ("{}"), distinct from None ("").
-        assert captured["body"] == "{}"
-
-    def test_callout_json_forwards_body_and_returns_raw_shape(self, monkeypatch):
-        nc = DefaultNamedCredential()
-        captured = {}
-
-        def fake_callout(callout_request):
-            captured.update(callout_request)
-            return {
-                "http_status_code": 200,
-                "headers": {"X": "y"},
-                "body": "plain text",
-            }
-
-        monkeypatch.setattr(nc, "_callout", fake_callout)
-        request = (
-            HTTPRequestBuilder()
-            .set_url("callout:NC/path")
-            .set_method(HTTPMethod.POST)
-            .build()
-        )
-
-        result = nc.callout_json(request, "a=1&b=2")
-
-        # Body is sent verbatim, not re-encoded as JSON.
         assert captured["body"] == "a=1&b=2"
-        # Response is the raw {http_status_code, headers, body} shape, body intact.
-        assert result == {
-            "http_status_code": 200,
-            "headers": {"X": "y"},
-            "body": "plain text",
-        }
-
-    def test_callout_json_none_body_sends_empty_string(self, monkeypatch):
-        nc = DefaultNamedCredential()
-        captured = {}
-
-        def fake_callout(callout_request):
-            captured.update(callout_request)
-            return {"http_status_code": 204, "headers": {}, "body": ""}
-
-        monkeypatch.setattr(nc, "_callout", fake_callout)
-        request = HTTPRequestBuilder().set_url("callout:NC/path").build()
-
-        result = nc.callout_json(request)
-
-        assert captured["body"] == ""
-        assert result == {"http_status_code": 204, "headers": {}, "body": ""}
 
 
 class TestDefaultSparkNamedCredential:
@@ -326,10 +267,10 @@ class TestDefaultSparkNamedCredential:
         spark_nc = DefaultSparkNamedCredential(named_credential=underlying)
 
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
-        result = spark_nc.request(request, {"k": "v"})
+        result = spark_nc.request(request, '{"k": "v"}')
 
         assert result is sentinel
-        assert underlying.calls == [(request, {"k": "v"})]
+        assert underlying.calls == [(request, '{"k": "v"}')]
 
     def test_builds_underlying_from_config_when_absent(self, monkeypatch):
         from datacustomcode.named_credential import spark_default
@@ -369,11 +310,11 @@ class TestDefaultSparkNamedCredentialRequestCol:
         mock_udf.return_value = sentinel_udf
 
         underlying = MagicMock()
-        underlying.callout_json.return_value = {
-            "http_status_code": 200,
-            "headers": {"Content-Type": "application/json"},
-            "body": '{"ok":true}',
-        }
+        underlying.request.return_value = HTTPResponse(
+            status_code=200,
+            headers={"Content-Type": "application/json"},
+            body='{"ok":true}',
+        )
         spark_nc = DefaultSparkNamedCredential(named_credential=underlying)
 
         request = HTTPRequestBuilder().set_url("callout:NC/v1/accounts").build()
@@ -401,7 +342,7 @@ class TestDefaultSparkNamedCredentialRequestCol:
         assert payload["body"] == '{"ok":true}'
 
         # The raw body string (NOT a parsed dict) is forwarded to the callout.
-        sent_request, sent_body = underlying.callout_json.call_args.args
+        sent_request, sent_body = underlying.request.call_args.args
         assert sent_request is request
         assert sent_body == '{"name": "acme"}'
 
@@ -437,11 +378,11 @@ class TestInvokeCalloutAsStruct:
         )
 
         underlying = MagicMock()
-        underlying.callout_json.return_value = {
-            "http_status_code": 201,
-            "headers": {"X-Trace": "abc"},
-            "body": "[1,2,3]",
-        }
+        underlying.request.return_value = HTTPResponse(
+            status_code=201,
+            headers={"X-Trace": "abc"},
+            body="[1,2,3]",
+        )
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
 
         out = _invoke_callout_as_struct(underlying, request, '{"a": 1}')
@@ -454,7 +395,7 @@ class TestInvokeCalloutAsStruct:
             "headers": {"X-Trace": "abc"},
         }
         # The request body is forwarded verbatim (never validated as JSON).
-        assert underlying.callout_json.call_args.args[1] == '{"a": 1}'
+        assert underlying.request.call_args.args[1] == '{"a": 1}'
 
     def test_non_json_request_body_is_forwarded_not_rejected(self):
         from datacustomcode.named_credential.spark_default import (
@@ -464,17 +405,17 @@ class TestInvokeCalloutAsStruct:
         # Mirrors the runtime: an opaque body (form-encoded / plain text) is sent
         # as-is instead of being rejected the way JSON parsing would.
         underlying = MagicMock()
-        underlying.callout_json.return_value = {
-            "http_status_code": 200,
-            "headers": {},
-            "body": "OK",
-        }
+        underlying.request.return_value = HTTPResponse(
+            status_code=200,
+            headers={},
+            body="OK",
+        )
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
 
         out = _invoke_callout_as_struct(underlying, request, "a=1&b=2")
 
         assert out["status"] == "SUCCESS"
-        assert underlying.callout_json.call_args.args[1] == "a=1&b=2"
+        assert underlying.request.call_args.args[1] == "a=1&b=2"
         # A non-JSON response body is preserved verbatim, not dropped to "".
         assert out["response"]["body"] == "OK"
 
@@ -484,11 +425,11 @@ class TestInvokeCalloutAsStruct:
         )
 
         underlying = MagicMock()
-        underlying.callout_json.return_value = {
-            "http_status_code": 200,
-            "headers": {},
-            "body": "",
-        }
+        underlying.request.return_value = HTTPResponse(
+            status_code=200,
+            headers={},
+            body="",
+        )
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
 
         out = _invoke_callout_as_struct(underlying, request, None)
@@ -502,7 +443,7 @@ class TestInvokeCalloutAsStruct:
             "headers": {},
         }
         # A null body column forwards None (not "null") to the callout.
-        assert underlying.callout_json.call_args.args[1] is None
+        assert underlying.request.call_args.args[1] is None
 
     def test_transport_error_yields_error_struct(self):
         from datacustomcode.named_credential.spark_default import (
@@ -510,7 +451,7 @@ class TestInvokeCalloutAsStruct:
         )
 
         underlying = MagicMock()
-        underlying.callout_json.side_effect = RuntimeError("proxy down")
+        underlying.request.side_effect = RuntimeError("proxy down")
         request = HTTPRequestBuilder().set_url("callout:NC/path").build()
 
         out = _invoke_callout_as_struct(underlying, request, '{"a": 1}')

@@ -21,12 +21,12 @@ from typing import (
     Optional,
 )
 
-from datacustomcode.named_credential.base import NamedCredential
 from datacustomcode.named_credential.spark_base import SparkNamedCredential
 
 if TYPE_CHECKING:
     from pyspark.sql import Column
 
+    from datacustomcode.named_credential.base import NamedCredential
     from datacustomcode.named_credential.types.http_request import HTTPRequest
     from datacustomcode.named_credential.types.http_response import HTTPResponse
 
@@ -71,7 +71,7 @@ class DefaultSparkNamedCredential(SparkNamedCredential):
     def request(
         self,
         request: "HTTPRequest",
-        body: Optional[Dict[str, Any]] = None,
+        body: Optional[str] = None,
     ) -> "HTTPResponse":
         return self._named_credential.request(request, body)
 
@@ -114,18 +114,6 @@ class DefaultSparkNamedCredential(SparkNamedCredential):
             ]
         )
 
-        # Fail at column-build time rather than turning every row into an opaque error.
-        if (
-            getattr(type(self._named_credential), "callout_json", None)
-            is NamedCredential.callout_json
-        ):
-            raise TypeError(
-                f"{type(self._named_credential).__name__} does not support the "
-                "per-row callout path; it must override callout_json(). Use "
-                "named_credential_request() for a one-shot callout, or configure "
-                "DefaultNamedCredential."
-            )
-
         def _callout(body_str: Optional[str]) -> Dict[str, Any]:
             return _invoke_callout_as_struct(self._named_credential, request, body_str)
 
@@ -145,7 +133,7 @@ def _invoke_callout_as_struct(
     ERROR structs rather than aborting the job.
     """
     try:
-        callout_response = named_credential.callout_json(request, body_str)
+        response = named_credential.request(request, body_str)
     except Exception as exc:  # surface any transport error per row
         return {
             "status": _STATUS_ERROR,
@@ -154,13 +142,12 @@ def _invoke_callout_as_struct(
             "error_message": str(exc),
         }
 
-    status_code = callout_response.get("http_status_code")
     return {
         "status": _STATUS_SUCCESS,
         "response": {
-            "status_code": int(status_code) if status_code is not None else None,
-            "body": callout_response.get("body") or "",
-            "headers": callout_response.get("headers") or {},
+            "status_code": response.status_code,
+            "body": response.body,
+            "headers": response.headers,
         },
         "error_code": None,
         "error_message": None,

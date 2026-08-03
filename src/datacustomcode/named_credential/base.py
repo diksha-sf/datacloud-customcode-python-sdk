@@ -15,12 +15,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Optional,
-)
+from typing import TYPE_CHECKING, Optional
 
 from datacustomcode.mixin import UserExtendableNamedConfigMixin
 
@@ -39,7 +34,7 @@ class NamedCredential(ABC, UserExtendableNamedConfigMixin):
     def request(
         self,
         request: HTTPRequest,
-        body: Optional[Dict[str, Any]] = None,
+        body: Optional[str] = None,
     ) -> HTTPResponse:
         """Make an external callout through a Named Credential.
 
@@ -49,24 +44,11 @@ class NamedCredential(ABC, UserExtendableNamedConfigMixin):
 
         Args:
             request: The callout request
-            body: Optional JSON-serializable request body.
+            body: Optional request body. Set the
+                ``Content-Type`` header to match the format; the SDK
+                does not assume or inject one.
 
         Returns:
             The external service's response.
         """
         ...
-
-    def callout_json(
-        self,
-        request: HTTPRequest,
-        body: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Low-level string-in/string-out callout returning the raw response.
-
-        It is required only by the per-row Spark path which forwards the
-        raw body per row; the default signals it as unsupported.
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement callout_json(); it "
-            "supports only one-shot request()."
-        )

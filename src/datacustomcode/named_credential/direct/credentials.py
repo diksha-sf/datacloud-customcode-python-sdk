@@ -12,11 +12,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Load developer credentials for direct callouts from ``credential.json``.
+"""Load developer credentials for direct callouts from ``external_callout_config.json``.
 
 The file lives in the parent of the payload folder so it is never packaged in
-the deployment zip. Keys are callout references (``callout:<NamedCredential>``);
-each value carries a mandatory ``auth_type`` and an optional ``target_url``.
+the deployment zip. Its ``credentials`` section is keyed by callout reference
+(``callout:<NamedCredential>``); each value carries a mandatory ``auth_type``
+and an optional ``target_url``.
 """
 
 from __future__ import annotations
@@ -32,9 +33,9 @@ from typing import (
 )
 
 # Default file name; discovered in the parent of the payload folder.
-DEFAULT_CREDENTIAL_FILE = "credential.json"
+EXTERNAL_CALLOUT_CREDENTIAL = "external_callout_config.json"
 # Absolute-path override, primarily for tests and non-standard layouts.
-CREDENTIAL_FILE_ENV_VAR = "DATACUSTOMCODE_CREDENTIAL_FILE"
+CREDENTIAL_FILE_ENV_VAR = "DATACUSTOMCODE_EXTERNAL_CALLOUT_CONFIG"
 
 
 class AuthType(str, Enum):
@@ -51,20 +52,20 @@ class CredentialError(RuntimeError):
 
 
 def _discover_credential_file() -> Optional[Path]:
-    """Find ``credential.json`` via env override, then by walking up from cwd."""
+    """Find the config file via env override, then by walking up from cwd."""
     override = os.environ.get(CREDENTIAL_FILE_ENV_VAR)
     if override:
         return Path(override)
 
     for directory in (Path.cwd(), *Path.cwd().parents):
-        candidate = directory / DEFAULT_CREDENTIAL_FILE
+        candidate = directory / EXTERNAL_CALLOUT_CREDENTIAL
         if candidate.is_file():
             return candidate
     return None
 
 
 class CredentialStore:
-    """Reads ``credential.json`` and returns per-callout configuration."""
+    """Reads ``external_callout_config.json`` and returns per-callout config."""
 
     def __init__(self, credential_file: Optional[str] = None) -> None:
         self._explicit_path = Path(credential_file) if credential_file else None
@@ -77,7 +78,7 @@ class CredentialStore:
         path = self._explicit_path or _discover_credential_file()
         if path is None or not path.is_file():
             raise CredentialError(
-                f"Could not find '{DEFAULT_CREDENTIAL_FILE}'. Place it in the "
+                f"Could not find '{EXTERNAL_CALLOUT_CREDENTIAL}'. Place it in the "
                 f"parent of your payload folder, or set "
                 f"${CREDENTIAL_FILE_ENV_VAR} to its path."
             )
@@ -87,12 +88,16 @@ class CredentialStore:
         except (OSError, json.JSONDecodeError) as exc:
             raise CredentialError(f"Failed to read '{path}': {exc}") from exc
 
-        if not isinstance(data, dict):
+        # Per-callout entries live under the ``credentials`` section, leaving
+        # room for other config sections alongside them in the future.
+        credentials = data.get("credentials") if isinstance(data, dict) else None
+        if not isinstance(credentials, dict):
             raise CredentialError(
-                f"'{path}' must be a JSON object keyed by callout reference."
+                f"'{path}' must be a JSON object with a 'credentials' section "
+                f"keyed by callout reference."
             )
-        self._credentials = data
-        return data
+        self._credentials = credentials
+        return credentials
 
     def get(self, callout_key: str) -> Dict[str, Any]:
         """Return the config for a callout key (e.g. ``callout:AWS_S3_Service``).
@@ -105,7 +110,8 @@ class CredentialStore:
         if config is None:
             raise CredentialError(
                 f"No credential configuration found for '{callout_key}'. "
-                f"Add it to '{DEFAULT_CREDENTIAL_FILE}'."
+                f"Add it to the 'credentials' section of "
+                f"'{EXTERNAL_CALLOUT_CREDENTIAL}'."
             )
         if not isinstance(config, dict) or not config.get("auth_type"):
             raise CredentialError(
