@@ -17,6 +17,7 @@ request = (
     .set_url("callout:gemini")            # callout:<NC name>[/<path>]
     .set_method(HTTPMethod.POST)
     .set_headers({"Content-Type": "application/json"})
+    .set_response_timeout_seconds(60)     # optional: per-callout timeout (seconds)
     .build()
 )
 ```

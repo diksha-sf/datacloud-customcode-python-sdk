@@ -26,6 +26,7 @@ only the body differs:
 import json
 import logging
 
+from pyspark.sql import Column
 from pyspark.sql.functions import (
     array,
     col,
@@ -62,11 +63,12 @@ _REQUEST = (
     .set_url(CALLOUT_URL)
     .set_method(HTTPMethod.POST)
     .set_headers({"Content-Type": "application/json", "Accept": "application/json"})
+    .set_response_timeout_seconds(60)
     .build()
 )
 
 
-def _gemini_body_col(text_col: "col") -> "col":  # noqa: F821
+def _gemini_body_col(text_col: Column) -> Column:
     """Build a per-row Gemini ``generateContent`` request body as a JSON string.
 
     Using ``to_json(struct(...))`` keeps the row text properly escaped inside the
@@ -97,7 +99,7 @@ def _summarize_on_driver(client: Client, text: str) -> str:
 
     envelope = json.loads(response.body) if response.body else {}
     try:
-        return envelope["candidates"][0]["content"]["parts"][0]["text"]
+        return str(envelope["candidates"][0]["content"]["parts"][0]["text"])
     except (KeyError, IndexError, TypeError):
         return ""
 
@@ -125,11 +127,11 @@ def main():
         col("_callout")["response"]["body"],
         "$.candidates[0].content.parts[0].text",
     )
-    
+
     df = df.select(
-        col(_ID_COLUMN).alias("id__c"),
-        col(_TEXT_COLUMN).alias("description__c"),
-        col(_KQ_ID_COLUMN).alias("kq_id__c"),
+        col("id__c").alias("id__c"),
+        col("Description__c").alias("description__c"),
+        col("kq_id__c").alias("kq_id__c"),
         summary.alias("summary__c"),
         col("_callout")["status"].alias("callout_status__c"),
         col("_callout")["response"]["status_code"].alias("callout_http_code__c"),

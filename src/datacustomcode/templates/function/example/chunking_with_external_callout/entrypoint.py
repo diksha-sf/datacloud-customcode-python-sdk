@@ -108,6 +108,7 @@ def _analyze_chunk(chunk_text: str, runtime: Runtime) -> dict[str, str]:
         .set_url(CALLOUT_URL)
         .set_method(HTTPMethod.POST)
         .set_headers({"Content-Type": "application/json", "Accept": "application/json"})
+        .set_response_timeout_seconds(60)
         .build()
     )
 

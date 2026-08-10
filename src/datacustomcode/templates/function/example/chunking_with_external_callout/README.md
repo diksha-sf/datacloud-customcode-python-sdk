@@ -16,6 +16,7 @@ request = (
     .set_url(CALLOUT_URL)
     .set_method(HTTPMethod.POST)
     .set_headers({"Content-Type": "application/json"})
+    .set_response_timeout_seconds(60) # optional: per-callout timeout (seconds)
     .build()
 )
 # Body is sent verbatim (serialize it yourself); the response body is a raw string.

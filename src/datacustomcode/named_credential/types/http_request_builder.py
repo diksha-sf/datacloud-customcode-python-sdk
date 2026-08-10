@@ -13,10 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Union
+from typing import (
+    Dict,
+    Optional,
+    Union,
+)
 
 from datacustomcode.named_credential.types.http_method import HTTPMethod
 from datacustomcode.named_credential.types.http_request import HTTPRequest
+
+# Control header carrying the per-request callout response timeout (seconds).
+CALLOUT_RESPONSE_TIMEOUT_HEADER = "ctx-callout-response-timeout-seconds"
 
 
 class HTTPRequestBuilder:
@@ -24,6 +31,7 @@ class HTTPRequestBuilder:
         self._url = ""
         self._method: Union[str, HTTPMethod] = HTTPMethod.GET
         self._headers: Dict[str, str] = {}
+        self._response_timeout_seconds: Optional[int] = None
 
     def set_url(self, url: str) -> "HTTPRequestBuilder":
         """Set the symbolic Named Credential reference.
@@ -44,12 +52,37 @@ class HTTPRequestBuilder:
         return self
 
     def set_headers(self, headers: Dict[str, str]) -> "HTTPRequestBuilder":
+        """Set the HTTP headers.
+
+        Args:
+            headers: a dictionary of HTTP headers
+        """
         self._headers = headers
         return self
 
+    def set_response_timeout_seconds(self, seconds: int) -> "HTTPRequestBuilder":
+        """Set the per-request callout response timeout, in seconds.
+
+        The ``ctx-callout-response-timeout-seconds`` control header allows to
+        configure the timeout for the callout response. This is optional.
+        If not set, the platform will use the default timeout.
+        """
+        if isinstance(seconds, bool) or not isinstance(seconds, int) or seconds <= 0:
+            raise ValueError(
+                "response timeout must be a positive integer number of seconds, "
+                f"got {seconds!r}."
+            )
+        self._response_timeout_seconds = seconds
+        return self
+
     def build(self) -> HTTPRequest:
+        headers = dict(self._headers)
+        if self._response_timeout_seconds is not None:
+            headers[CALLOUT_RESPONSE_TIMEOUT_HEADER] = str(
+                self._response_timeout_seconds
+            )
         return HTTPRequest(
             url=self._url,
             method=self._method,  # type: ignore[arg-type]
-            headers=self._headers,
+            headers=headers,
         )
